@@ -4038,6 +4038,10 @@ class Particl(Coin):
     P2PKH_VERBYTE = bytes.fromhex("38")
     P2SH_VERBYTES = (bytes.fromhex("3c"),)
     WIF_BYTE = bytes.fromhex("6c")
+
+    HEADER_VALUES = ('version', 'prev_block_hash', 'merkle_root', 'witness_merkle_root', 'timestamp',
+                     'bits', 'nonce')
+    HEADER_UNPACK = struct.Struct('< I 32s 32s 32s I I I').unpack_from
     GENESIS_HASH = ('0000ee0784c195317ac95623e22fddb8'
                     'c7b8825dc3998e0bb924d66866eccf4c')
     DESERIALIZER = lib_tx.DeserializerParticl
