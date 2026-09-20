@@ -166,3 +166,17 @@ New methods
 -----------
 
   * :func:`blockchain.scripthash.unsubscribe` to unsubscribe from a script hash.
+
+Version 1.4.3
+=============
+
+Particl only.
+
+New methods
+-----------
+
+  * :func:`blockchain.block.stake_proof` to return the coinstake, block
+    signature and kernel data a client needs to validate a proof-of-stake
+    block header.
+  * :func:`blockchain.block.stake_proofs` to return the same for a run of
+    blocks.

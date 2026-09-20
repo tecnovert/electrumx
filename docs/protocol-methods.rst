@@ -153,6 +153,113 @@ See :ref:`here <cp_height example>` for an example of *root* and
     "max": 2016
   }
 
+blockchain.block.stake_proof
+============================
+
+Return the data a client needs to validate a proof-of-stake block whose
+header it already holds: the coinstake transaction with its merkle branch,
+the block signature, and the kernel input's source transaction with the
+proofs that place it in the chain.  Particl only.
+
+**Signature**
+
+  .. function:: blockchain.block.stake_proof(height, cp_height=0)
+  .. versionadded:: 1.4.3
+
+  *height*
+
+    The main chain block height, a non-negative integer.
+
+  *cp_height*
+
+    Checkpoint height, a non-negative integer.  When non-zero, a source
+    block at or below it is proven against the header merkle root at that
+    height, as :func:`blockchain.block.header` does.  A source block above
+    it is one the client holds itself, so no proof is attached.
+
+**Result**
+
+  A dictionary with the following keys:
+
+  * *height*
+
+    The block height.
+
+  * *coinstake*
+
+    The first transaction of the block as a hexadecimal string.  For a
+    proof-of-stake block this is the coinstake; the client must check its
+    hash against *merkle*.
+
+  * *merkle*
+
+    The merkle branch of *coinstake* at position 0, deepest pairing first,
+    as :func:`blockchain.transaction.id_from_pos` returns it.
+
+  * *blocksig*
+
+    The block signature as a hexadecimal string, empty for a block without
+    one.
+
+  * *kernel*
+
+    Absent when the first transaction is a coinbase.  Otherwise a
+    dictionary describing the output the coinstake's first input spends:
+
+    * *tx* - the source transaction as a hexadecimal string
+    * *height* - the height of the block containing it
+    * *pos* - its position in that block
+    * *merkle* - its merkle branch in that block, deepest pairing first
+    * *header* - that block's raw header as a hexadecimal string
+    * *header_branch*, *root* - present when *cp_height* covers *height*:
+      the header's branch and the header merkle root at *cp_height*, as
+      :func:`blockchain.block.header` returns them
+
+  Nothing in the result is to be taken on the server's word: the client
+  checks *coinstake* against the header's merkle root, *kernel.tx* against
+  the coinstake's input, *kernel.tx* against *kernel.header* through
+  *kernel.merkle*, and *kernel.header* against a root it already trusts.
+
+blockchain.block.stake_proofs
+=============================
+
+Return :func:`blockchain.block.stake_proof` results for a run of blocks.
+
+**Signature**
+
+  .. function:: blockchain.block.stake_proofs(start_height, count, cp_height=0)
+  .. versionadded:: 1.4.3
+
+  *start_height*
+
+    The height of the first block, a non-negative integer.
+
+  *count*
+
+    The number of blocks, a non-negative integer.  At most *max* are
+    returned.
+
+  *cp_height*
+
+    As for :func:`blockchain.block.stake_proof`.
+
+**Result**
+
+  A dictionary with the following keys:
+
+  * *proofs*
+
+    A list of :func:`blockchain.block.stake_proof` results, in height
+    order.  Shorter than *count* when the chain ends first.
+
+  * *count*
+
+    The number of proofs returned.
+
+  * *max*
+
+    The maximum number of proofs the server will return in one request.
+
 blockchain.estimatefee
 ======================
 

@@ -11,6 +11,7 @@ import asyncio
 import codecs
 import datetime
 import itertools
+import json
 import math
 import os
 import ssl
@@ -1755,6 +1756,106 @@ class SmartCashElectrumX(DashElectrumX):
         if result is not None:
             return result
         return None
+
+
+class ParticlElectrumX(ElectrumX):
+    PROTOCOL_MAX = (1, 4, 3)
+    MAX_STAKE_PROOFS = 100
+
+    def set_request_handlers(self, ptuple):
+        super().set_request_handlers(ptuple)
+        if ptuple >= (1, 4, 3):
+            self.request_handlers.update({
+                'blockchain.block.stake_proof': self.block_stake_proof,
+                'blockchain.block.stake_proofs': self.block_stake_proofs,
+            })
+
+    async def block_stake_proof(self, height, cp_height=0):
+        '''Return the proof of stake data for the block at height.'''
+        height = non_negative_integer(height)
+        cp_height = non_negative_integer(cp_height)
+        proofs = await self._stake_proofs(height, 1, cp_height)
+        if not proofs:
+            raise RPCError(BAD_REQUEST, f'no block at height {height:,d}')
+        return proofs[0]
+
+    async def block_stake_proofs(self, start_height, count, cp_height=0):
+        '''Return the proof of stake data for count blocks starting at
+        start_height.  At most MAX_STAKE_PROOFS are returned.'''
+        start_height = non_negative_integer(start_height)
+        count = non_negative_integer(count)
+        cp_height = non_negative_integer(cp_height)
+        count = min(count, self.MAX_STAKE_PROOFS)
+        proofs = await self._stake_proofs(start_height, count, cp_height)
+        return {'proofs': proofs, 'count': len(proofs), 'max': self.MAX_STAKE_PROOFS}
+
+    async def _stake_proofs(self, start_height, count, cp_height):
+        count = min(count, self.db.db_height - start_height + 1)
+        if count <= 0:
+            return []
+        block_hashes = await self.db.fs_block_hashes(start_height, count)
+        raw_blocks = await self.daemon_request(
+            'raw_blocks', [hash_to_hex_str(h) for h in block_hashes], True)
+        cost = 1.0
+        proofs = []
+        kernels = []
+        for n, raw_block in enumerate(raw_blocks):
+            if raw_block is None:
+                break
+            height = start_height + n
+            coinstake, prevout, blocksig = self.coin.stake_block_parts(raw_block, height)
+            branch, _tx_hash, branch_cost = await self.session_mgr.merkle_branch_for_tx_pos(
+                height, 0)
+            cost += branch_cost + 1.0
+            proofs.append({
+                'height': height,
+                'blocksig': blocksig.hex(),
+                'coinstake': coinstake.hex(),
+                'merkle': branch,
+            })
+            if prevout is not None:
+                kernels.append((n, prevout[0]))
+
+        if kernels:
+            tx_hashes_hex = [hash_to_hex_str(tx_hash) for _n, tx_hash in kernels]
+            txs = await self.daemon_request('getrawtransactions_verbose', tx_hashes_hex, True)
+            found_headers = iter(await self.daemon_request(
+                'getblockheaders', [tx['blockhash'] for tx in txs if tx is not None], True))
+            for (n, tx_hash), tx in zip(kernels, txs):
+                header = next(found_headers) if tx is not None else None
+                if header is None:
+                    # A proof without its kernel can't be verified, and nor can any after it
+                    del proofs[n:]
+                    break
+                source_height = header['height']
+                branch, tx_pos, branch_cost = await self.session_mgr.merkle_branch_for_tx_hash(
+                    source_height, tx_hash)
+                raw_header = await self.session_mgr.raw_header(source_height)
+                cost += branch_cost + 1.0
+                kernel = {
+                    'tx': tx['hex'],
+                    'height': source_height,
+                    'pos': tx_pos,
+                    'merkle': branch,
+                    'header': raw_header.hex(),
+                }
+                if cp_height and source_height <= cp_height:
+                    proof = await self._merkle_proof(cp_height, source_height)
+                    kernel['header_branch'] = proof['branch']
+                    kernel['root'] = proof['root']
+                proofs[n]['kernel'] = kernel
+
+        # Half the send limit leaves room for the reply's own framing
+        budget = self.env.max_send // 2
+        size = 0
+        for n, proof in enumerate(proofs):
+            size += len(json.dumps(proof)) + 2
+            if n > 0 and size > budget:
+                del proofs[n:]
+                break
+
+        self.bump_cost(cost)
+        return proofs
 
 
 class AuxPoWElectrumX(ElectrumX):

@@ -49,7 +49,8 @@ import electrumx.lib.tx_axe as lib_tx_axe
 import electrumx.server.block_processor as block_proc
 import electrumx.server.daemon as daemon
 from electrumx.server.session import (ElectrumX, DashElectrumX,
-                                      SmartCashElectrumX, AuxPoWElectrumX)
+                                      SmartCashElectrumX, AuxPoWElectrumX,
+                                      ParticlElectrumX)
 
 
 @dataclass
@@ -4045,6 +4046,7 @@ class Particl(Coin):
     GENESIS_HASH = ('0000ee0784c195317ac95623e22fddb8'
                     'c7b8825dc3998e0bb924d66866eccf4c')
     DESERIALIZER = lib_tx.DeserializerParticl
+    SESSIONCLS = ParticlElectrumX
     TX_COUNT = 1176142
     TX_COUNT_HEIGHT = 992790
     TX_PER_BLOCK = 10
@@ -4063,6 +4065,25 @@ class Particl(Coin):
                             f'expected {cls.GENESIS_HASH}')
 
         return block
+
+    @classmethod
+    def stake_block_parts(cls, raw_block, height):
+        '''Return (coinstake_raw, prevout, blocksig) for a raw block.
+
+        prevout is (hash, index) of the coinstake's kernel input, or None
+        when the first transaction is a coinbase.'''
+        header = cls.block_header(raw_block, height)
+        deserializer = cls.DESERIALIZER(raw_block, start=len(header))
+        tx_count = deserializer._read_varint()
+        start = deserializer.cursor
+        tx = deserializer.read_tx()
+        coinstake = raw_block[start:deserializer.cursor]
+        for _ in range(tx_count - 1):
+            deserializer.read_tx()
+        blocksig = deserializer._read_varbytes()
+        txin = tx.inputs[0]
+        prevout = None if txin.prev_hash == bytes(32) else (txin.prev_hash, txin.prev_idx)
+        return coinstake, prevout, blocksig
 
 
 class ParticlTestnet(Particl):

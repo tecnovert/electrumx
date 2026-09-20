@@ -236,12 +236,13 @@ class Daemon:
         '''Return the deserialised block with the given hex hash.'''
         return await self._send_single('getblock', (hex_hash, True))
 
-    async def raw_blocks(self, hex_hashes):
+    async def raw_blocks(self, hex_hashes, replace_errs=False):
         '''Return the raw binary blocks with the given hex hashes.'''
         params_iterable = ((h, False) for h in hex_hashes)
-        blocks = await self._send_vector('getblock', params_iterable)
+        blocks = await self._send_vector('getblock', params_iterable,
+                                         replace_errs=replace_errs)
         # Convert hex string to bytes
-        return [hex_to_bytes(block) for block in blocks]
+        return [None if block is None else hex_to_bytes(block) for block in blocks]
 
     async def mempool_hashes(self):
         '''Update our record of the daemon's mempool hashes.'''
@@ -292,6 +293,18 @@ class Daemon:
                                       replace_errs=replace_errs)
         # Convert hex strings to bytes
         return [hex_to_bytes(tx) if tx else None for tx in txs]
+
+    async def getrawtransactions_verbose(self, hex_hashes, replace_errs=False):
+        '''Return the verbose (JSON) transactions with the given hashes.'''
+        params_iterable = ((hex_hash, 1) for hex_hash in hex_hashes)
+        return await self._send_vector('getrawtransaction', params_iterable,
+                                       replace_errs=replace_errs)
+
+    async def getblockheaders(self, hex_hashes, replace_errs=False):
+        '''Return the verbose (JSON) block headers with the given hashes.'''
+        params_iterable = ((hex_hash, True) for hex_hash in hex_hashes)
+        return await self._send_vector('getblockheader', params_iterable,
+                                       replace_errs=replace_errs)
 
     async def broadcast_transaction(self, raw_tx):
         '''Broadcast a transaction to the network.'''
