@@ -24,6 +24,7 @@ class FakeDaemon:
         self.missing_tx = {hash_to_hex_str(source_hash(n)) for n in missing_tx}
         self.tx_hex_size = tx_hex_size
         self.missing_block = missing_block
+        self.modifier_asked = []
 
     async def raw_blocks(self, hex_hashes, replace_errs=False):
         blocks = []
@@ -50,6 +51,10 @@ class FakeDaemon:
 
     async def getblockheaders(self, hex_hashes, replace_errs=False):
         return [{'height': 1} for _ in hex_hashes]
+
+    async def stake_modifier(self, hex_hash):
+        self.modifier_asked.append(hex_hash)
+        return 'cd' * 32
 
 
 class FakeDB:
@@ -168,3 +173,31 @@ async def test_proofs_stop_at_missing_block():
     proofs = await make_session(missing_block=(1,))._stake_proofs(5, 3, 0)
     assert [p['height'] for p in proofs] == [5]
     assert 'kernel' in proofs[0]
+
+
+@pytest.mark.asyncio
+async def test_first_proof_carries_the_stake_modifier():
+    session = make_session()
+    proofs = await session._stake_proofs(5, 3, 0)
+    assert proofs[0]['stake_modifier'] == 'cd' * 32
+    assert all('stake_modifier' not in p for p in proofs[1:])
+    assert session.session_mgr.daemon.modifier_asked == [hash_to_hex_str(bytes([5]) * 32)]
+
+
+@pytest.mark.asyncio
+async def test_no_modifier_asked_without_a_proof():
+    session = make_session(missing_block=(0,))
+    assert await session._stake_proofs(5, 3, 0) == []
+    assert session.session_mgr.daemon.modifier_asked == []
+
+
+@pytest.mark.asyncio
+async def test_stake_modifier_asks_for_coinstake_details():
+    daemon = Daemon.__new__(Daemon)
+
+    async def send_single(method, params=None):
+        assert (method, params) == ('getblock', ('ab' * 32, 1, True))
+        return {'prevstakemodifier': 'cd' * 32}
+
+    daemon._send_single = send_single
+    assert await daemon.stake_modifier('ab' * 32) == 'cd' * 32

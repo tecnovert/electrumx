@@ -201,6 +201,14 @@ proofs that place it in the chain.  Particl only.
     The block signature as a hexadecimal string, empty for a block without
     one.
 
+  * *stake_modifier*
+
+    On the first proof of a result only: the stake modifier the block was
+    staked against, as a hexadecimal string.  Absent for a block without a
+    parent.
+
+    .. versionadded:: 1.4.4
+
   * *kernel*
 
     Absent when the first transaction is a coinbase.  Otherwise a
@@ -215,7 +223,9 @@ proofs that place it in the chain.  Particl only.
       the header's branch and the header merkle root at *cp_height*, as
       :func:`blockchain.block.header` returns them
 
-  Nothing in the result is to be taken on the server's word: the client
+  Apart from *stake_modifier*, which the client compares with a modifier
+  it holds from elsewhere, nothing in the result is to be taken on the
+  server's word: the client
   checks *coinstake* against the header's merkle root, *kernel.tx* against
   the coinstake's input, *kernel.tx* against *kernel.header* through
   *kernel.merkle*, and *kernel.header* against a root it already trusts.

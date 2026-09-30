@@ -1759,7 +1759,7 @@ class SmartCashElectrumX(DashElectrumX):
 
 
 class ParticlElectrumX(ElectrumX):
-    PROTOCOL_MAX = (1, 4, 3)
+    PROTOCOL_MAX = (1, 4, 4)
     MAX_STAKE_PROOFS = 100
 
     def set_request_handlers(self, ptuple):
@@ -1844,6 +1844,13 @@ class ParticlElectrumX(ElectrumX):
                     kernel['header_branch'] = proof['branch']
                     kernel['root'] = proof['root']
                 proofs[n]['kernel'] = kernel
+
+        if proofs:
+            modifier = await self.daemon_request('stake_modifier',
+                                                 hash_to_hex_str(block_hashes[0]))
+            cost += 1.0
+            if modifier is not None:
+                proofs[0]['stake_modifier'] = modifier
 
         # Half the send limit leaves room for the reply's own framing
         budget = self.env.max_send // 2

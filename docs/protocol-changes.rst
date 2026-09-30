@@ -180,3 +180,16 @@ New methods
     block header.
   * :func:`blockchain.block.stake_proofs` to return the same for a run of
     blocks.
+
+Version 1.4.4
+=============
+
+Particl only.
+
+Changes
+-------
+
+  * :func:`blockchain.block.stake_proof` and
+    :func:`blockchain.block.stake_proofs`: the first proof of a result
+    carries *stake_modifier*, the stake modifier its block was staked
+    against.

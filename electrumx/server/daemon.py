@@ -306,6 +306,12 @@ class Daemon:
         return await self._send_vector('getblockheader', params_iterable,
                                        replace_errs=replace_errs)
 
+    async def stake_modifier(self, hex_hash):
+        '''Return the stake modifier the block with the given hash was staked
+        against, as a hexadecimal string.'''
+        block = await self._send_single('getblock', (hex_hash, 1, True))
+        return block.get('prevstakemodifier')
+
     async def broadcast_transaction(self, raw_tx):
         '''Broadcast a transaction to the network.'''
         return await self._send_single('sendrawtransaction', (raw_tx, ))
